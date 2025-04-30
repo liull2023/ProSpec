@@ -4,7 +4,7 @@
 -->
 
 <p align="center">
-  <img src="res/prospec.png" alt="ProSpec Logo" height="120"/>
+  <img src="res/prospec.png" alt="ProSpec Logo" height="360"/>
 </p>
 
 # ProSpec: Plan Ahead, Then Execute
