@@ -9,10 +9,8 @@
 ![ProSpec framework](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/framework.jpg)
 
 ---
-## Results
-![DMControl](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/dmc.jpg)
 
-![Atari](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/atari.jpg)
+---
 
 ## 🚀 Key Contributions
 
@@ -28,6 +26,12 @@
 3. **Cyclical Consistency Constraint**  
    - Enforces reversibility: rolling a predicted future state back to the original state recovers the start.  
    - Augments real data with accurate, reversible virtual trajectories—boosting data efficiency and stability.
+---
+
+## Results
+![DMControl](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/dmc.jpg)
+
+![Atari](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/atari.jpg)
 
 ---
 
