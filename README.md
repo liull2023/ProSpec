@@ -28,14 +28,6 @@
 <<<<<<< HEAD
 
 ---
-
-## Results
-![DMControl](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/dmc.jpg)
-
-![Atari](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/atari.jpg)
-=======
----
-
 ## Results
 ![DMControl](res/dmc.png)
 
