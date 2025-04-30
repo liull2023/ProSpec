@@ -25,7 +25,6 @@
 3. **Cyclical Consistency Constraint**  
    - Enforces reversibility: rolling a predicted future state back to the original state recovers the start.  
    - Augments real data with accurate, reversible virtual trajectories—boosting data efficiency and stability.
-<<<<<<< HEAD
 
 ---
 ## Results
