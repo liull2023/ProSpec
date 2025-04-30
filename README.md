@@ -3,9 +3,13 @@
 **Prospective thinking (PT)**—the human capacity to imagine future scenarios and plan accordingly—is central to efficient decision making. Traditional model-free reinforcement learning (RL) methods lack this foresight, often suffering from data inefficiency and “dead-end” state traps. **ProSpec** is the first RL framework to embed human-like prospective thinking into model-free agents, guiding them to **plan ahead** before **executing** actions.
 
 ---
-## abstract 
-![ProSpec](res/)
+## framwork 
+![ProSpec](res/prospec.jpg)
+![ProSpec framework](res/framework.jpg)
 ---
+## Results
+![DMControl](res/dmc.jpg)
+![Atari](res/atari.jpg)
 
 ## 🚀 Key Contributions
 
