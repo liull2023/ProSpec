@@ -51,12 +51,14 @@ ProSpec outperforms state-of-the-art baselines in 4/6 DMControl tasks and 8/26 A
 
 ```bash
 # 1) Clone the repository
-git clone https://github.com/anonymous/ProSpec.git
 cd ProSpec
 
 # 2) (Optional) Create and activate a virtual environment
-python3 -m venv venv
-source venv/bin/activate
+conda create -n ProSpec python==3.8
+conda activate ProSpec
 
 # 3) Install dependencies
-pip install -r requirements.txt
+For DMControl:
+pip install -r ./DMControl/requirements.txt
+For Atari:
+pip install -r ./Atari/requirements.txt
