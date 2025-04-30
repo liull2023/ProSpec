@@ -1,0 +1,12 @@
+absl-py
+pyparsing
+wandb==0.10.14
+hydra-core
+termcolor
+mujoco_py
+imageio
+imageio-ffmpeg
+scikit-image
+kornia==0.4.1
+tensorboard
+numpy==1.19
