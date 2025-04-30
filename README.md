@@ -4,20 +4,13 @@
 
 ---
 ## framwork 
-<<<<<<< HEAD
-![ProSpec](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/prospec.jpg)
 
-![ProSpec framework](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/framework.jpg)
+![ProSpec](/res/prospec.png)
 
----
-=======
-![ProSpec](/res/prospec.jpg)
-
-![ProSpec framework](/framework.jpg)
+![ProSpec framework](/res/framework.png)
 
 ---
 
->>>>>>> 6235a5957dc2d997fe8c1b0e789f030b56c855bd
 ## 🚀 Key Contributions
 
 1. **Flow-based Reversible Dynamics Model**  
@@ -44,10 +37,9 @@
 ---
 
 ## Results
-![DMControl](/res/dmc.jpg)
+![DMControl](/res/dmc.png)
 
-![Atari](/res/atari.jpg)
->>>>>>> 6235a5957dc2d997fe8c1b0e789f030b56c855bd
+![Atari](/res/atari.png)
 
 ---
 
