@@ -58,7 +58,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/anonymous/ProSpec.git
+[git clone https://github.com/anonymous/ProSpec.git](https://anonymous.4open.science/r/ProSpec-35B8)
 cd ProSpec
 
 # Create and activate a Conda environment
