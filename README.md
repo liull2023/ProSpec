@@ -4,15 +4,15 @@
 
 ---
 ## framwork 
-![ProSpec](https://raw.githubusercontent.com/liull2023/ProSpec/master/res/prospec.jpg)
+![ProSpec](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/prospec.jpg)
 
-![ProSpec framework](https://raw.githubusercontent.com/liull2023/ProSpec/master/res/framework.jpg)
+![ProSpec framework](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/framework.jpg)
 
 ---
 ## Results
-![DMControl](https://raw.githubusercontent.com/liull2023/ProSpec/master/res/dmc.jpg)
+![DMControl](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/dmc.jpg)
 
-![Atari](https://raw.githubusercontent.com/liull2023/ProSpec/master/res/atari.jpg)
+![Atari](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/atari.jpg)
 
 ## 🚀 Key Contributions
 
