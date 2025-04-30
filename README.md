@@ -4,11 +4,20 @@
 
 ---
 ## framwork 
+<<<<<<< HEAD
 ![ProSpec](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/prospec.jpg)
 
 ![ProSpec framework](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/framework.jpg)
 
 ---
+=======
+![ProSpec](/res/prospec.jpg)
+
+![ProSpec framework](/framework.jpg)
+
+---
+
+>>>>>>> 6235a5957dc2d997fe8c1b0e789f030b56c855bd
 ## 🚀 Key Contributions
 
 1. **Flow-based Reversible Dynamics Model**  
@@ -23,6 +32,7 @@
 3. **Cyclical Consistency Constraint**  
    - Enforces reversibility: rolling a predicted future state back to the original state recovers the start.  
    - Augments real data with accurate, reversible virtual trajectories—boosting data efficiency and stability.
+<<<<<<< HEAD
 
 ---
 
@@ -30,6 +40,14 @@
 ![DMControl](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/dmc.jpg)
 
 ![Atari](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/atari.jpg)
+=======
+---
+
+## Results
+![DMControl](/res/dmc.jpg)
+
+![Atari](/res/atari.jpg)
+>>>>>>> 6235a5957dc2d997fe8c1b0e789f030b56c855bd
 
 ---
 
