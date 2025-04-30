@@ -5,9 +5,9 @@
 ---
 ## framwork 
 
-![ProSpec](/res/prospec.png)
+![ProSpec](res/prospec.png)
 
-![ProSpec framework](/res/framework.png)
+![ProSpec framework](res/framework.png)
 
 ---
 
@@ -37,9 +37,9 @@
 ---
 
 ## Results
-![DMControl](/res/dmc.png)
+![DMControl](res/dmc.png)
 
-![Atari](/res/atari.png)
+![Atari](res/atari.png)
 
 ---
 
