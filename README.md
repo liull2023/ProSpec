@@ -5,7 +5,7 @@
 **Prospective Thinking (PT)**—the human ability to envision future scenarios and plan accordingly—is key to efficient decisions. Conventional model-free RL lacks this foresight, leading to data inefficiency and “dead-end” traps. **ProSpec** injects human-like PT into model-free agents, enabling them to **plan ahead** and then **execute**.
 
 <p align="center">
-  <img src="res/prospec.png" alt="ProSpec Logo" height="120"/>
+  <img src="res/prospec.png" alt="ProSpec Logo" height="480"/>
 </p>
 
 
