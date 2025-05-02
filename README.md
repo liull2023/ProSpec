@@ -1,79 +1,73 @@
 # ProSpec: Plan Ahead, Then Execute
 
-**Prospective thinking (PT)**—the human capacity to imagine future scenarios and plan accordingly—is central to efficient decision making. Traditional model-free reinforcement learning (RL) methods lack this foresight, often suffering from data inefficiency and “dead-end” state traps. **ProSpec** is the first RL framework to embed human-like prospective thinking into model-free agents, guiding them to **plan ahead** before **executing** actions.
+> **Anonymous Submission for NeurIPS 2025**
 
----
-## framwork 
-<<<<<<< HEAD
-![ProSpec](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/prospec.jpg)
+**Prospective Thinking (PT)**—the human ability to envision future scenarios and plan accordingly—is key to efficient decisions. Conventional model-free RL lacks this foresight, leading to data inefficiency and “dead-end” traps. **ProSpec** injects human-like PT into model-free agents, enabling them to **plan ahead** and then **execute**.
 
-![ProSpec framework](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/framework.jpg)
+<p align="center">
+  <img src="res/prospec.png" alt="ProSpec Logo" height="120"/>
+</p>
 
----
-=======
-![ProSpec](/res/prospec.jpg)
-
-![ProSpec framework](/framework.jpg)
 
 ---
 
->>>>>>> 6235a5957dc2d997fe8c1b0e789f030b56c855bd
+## 📖 Framework Overview
+
+<p align="center">
+  <img src="res/framework.png" alt="ProSpec Framework" width="800"/>
+</p>
+
+---
+
 ## 🚀 Key Contributions
 
 1. **Flow-based Reversible Dynamics Model**  
-   - Learns a reversible mapping from state–action pairs to next states.  
-   - Generates _n_ candidate future trajectories from the current state and policy, enabling rich scenario anticipation.
+   - Learns a bijective mapping between (state, action) and next state.  
+   - Rolls out _n_ candidate trajectories from the current policy for rich future anticipation.
 
 2. **Prospective Planning Mechanism**  
-   - Uses Model Predictive Control (MPC) with a **value consistency constraint**.  
-   - Ensures the agent “plans ahead, then executes” by selecting actions whose predicted returns align with learned value estimates.  
-   - Avoids high-risk “dead ends” by ruling out trajectories with low or inconsistent value.
+   - Model Predictive Control (MPC) with a **value consistency** constraint.  
+   - “Plan ahead, then execute”: pick the action whose predicted return matches the value network.  
+   - Prunes high-risk “dead-end” trajectories to avoid catastrophic failures.
 
 3. **Cyclical Consistency Constraint**  
-   - Enforces reversibility: rolling a predicted future state back to the original state recovers the start.  
-   - Augments real data with accurate, reversible virtual trajectories—boosting data efficiency and stability.
-<<<<<<< HEAD
+   - Enforces reversibility: rolling predicted future states back recovers the original.  
+   - Generates abundant, accurate virtual trajectories—boosting data efficiency and stability.
 
 ---
 
-## Results
-![DMControl](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/dmc.jpg)
+## 📊 Experimental Results
 
-![Atari](https://raw.githubusercontent.com/liull2023/ProSpec/tree/master/res/atari.jpg)
-=======
----
+<p align="center">
+  <img src="res/dmc.png" alt="DMControl Results" width="700"/>
+</p>
+<p align="center">
+  <img src="res/atari.png" alt="Atari Results" width="700"/>
+</p>
 
-## Results
-![DMControl](/res/dmc.jpg)
+| Benchmark     | Tasks | ProSpec Wins | SPR Wins | PlayVirtual Wins |RLASTIC Wins |
+|--------------:|:-----:|:------------:|:---------:|:---------:|:---------:|
+| **DMControl** | 6     | **4**        | 0        |1        |2        |
+| **Atari**     | 26    | **8**        | 0       |1        |8        |
 
-![Atari](/res/atari.jpg)
->>>>>>> 6235a5957dc2d997fe8c1b0e789f030b56c855bd
-
----
-
-## 📈 Experimental Results
-
-We benchmark ProSpec under limited environment interactions on both DMControl and Atari:
-
-| Domain       | # Environments | ProSpec Wins | SOTA Wins |
-|--------------|----------------|--------------|-----------|
-| **DMControl**| 6              | **4**        | 2         |
-| **Atari**    | 26             | **8**        | 18        |
-
-ProSpec outperforms state-of-the-art baselines in 4/6 DMControl tasks and 8/26 Atari games, demonstrating its ability to plan ahead effectively under resource constraints.
+> Under limited interactions, ProSpec outperforms state-of-the-art on 4/6 DMControl tasks and 8/26 Atari games.
 
 ---
 
-## 🔧 Installation
+## 💻 Installation
 
 ```bash
-# 1) Clone the repository
-git clone https://github.com/anonymous/ProSpec.git
+# Clone the repository
+[git clone https://github.com/anonymous/ProSpec.git](https://anonymous.4open.science/r/ProSpec-35B8)
 cd ProSpec
 
-# 2) (Optional) Create and activate a virtual environment
-python3 -m venv venv
-source venv/bin/activate
+# Create and activate a Conda environment
+conda create -n ProSpec python=3.8 -y
+conda activate ProSpec
 
-# 3) Install dependencies
-pip install -r requirements.txt
+# Install dependencies for your target domain:
+# DMControl
+pip install -r DMControl/requirements.txt
+
+# Atari
+pip install -r Atari/requirements.txt
