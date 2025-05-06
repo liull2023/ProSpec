@@ -883,23 +883,12 @@ class PVCatDqnModel(torch.nn.Module):
         returns = torch.zeros(K*B, device=device)
 
         for t in range(T):
-            next_latents, reward_logits  = self.forward_dynamics_model(
+            next_latents, _  = self.forward_dynamics_model(
                 latents, curr_actions, invert=False
-            ) 
-            prob_r = F.softmax(reward_logits, dim=-1)       
-            num_bins = prob_r.size(-1)                       
-            limit    = (num_bins - 1) // 2                  
-
-            z_r = torch.arange(-limit, limit + 1,
-                            device=device,
-                            dtype=prob_r.dtype)           
-
-            r_t = (prob_r * z_r.unsqueeze(0)).sum(-1)       
-            returns += (self.discounts[t] * r_t)
-            
+            )      
             q_vals = self.Q_from_latent(next_latents)       
             q_max, next_actions = q_vals.max(dim=-1)       
-            returns += (self.discounts[t] * mix_lambda * q_max)
+            returns += (self.discounts[t] * q_max)
 
             latents = next_latents
             curr_actions = next_actions
