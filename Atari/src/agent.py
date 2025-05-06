@@ -74,6 +74,7 @@ class PVAgent(AtariCatDqnAgent):
         super().eval_mode(itr)
         self.search.epsilon = self.distribution.epsilon
         self.search.network.head.set_sampling(False)
+        self.search.set_deterministic(True)
         self.itr = itr
 
     def sample_mode(self, itr):
@@ -81,6 +82,8 @@ class PVAgent(AtariCatDqnAgent):
         super().sample_mode(itr)
         self.search.epsilon = self.distribution.epsilon
         self.search.network.head.set_sampling(True)
+        self.search.set_deterministic(False)
+        self.search.set_deterministic(False)
         self.itr = itr
 
     def train_mode(self, itr):
@@ -109,9 +112,13 @@ class SPRActionSelection(torch.nn.Module):
         self.epsilon = distribution._epsilon
         self.device = device
         self.first_call = True
+        self.deterministic = False
 
     def to_device(self, idx):
         self.device = idx
+
+    def set_deterministic(self, flag: bool):
+        self.deterministic = flag
 
     @torch.no_grad()
     def run(self, obs):
@@ -130,7 +137,15 @@ class SPRActionSelection(torch.nn.Module):
     def select_action(self, observation, value):
         """Input can be shaped [T,B,Q] or [B,Q], and vector epsilon of length
         B will apply across the Batch dimension (same epsilon for all T)."""
-        arg_select = self.network.opt_at_predict(observation, value)
+        if self.deterministic:
+            return torch.argmax(value, dim=-1)
+            
+        if self.prospect > 10000:
+            arg_select = self.network.opt_at_predict(observation, value)
+        else:
+            arg_select = torch.argmax(value, dim=-1)
+        self.prospect += 1
+
         mask = torch.rand(arg_select.shape, device=value.device) < self.epsilon
         arg_rand = torch.randint(low=0, high=value.shape[-1], size=(mask.sum(),), device=value.device)
         arg_select[mask] = arg_rand

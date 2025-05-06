@@ -945,7 +945,7 @@ class CycDMSacAgent(object):
         obs = obs.unsqueeze(0)
         with torch.no_grad():
             mu, pi, _, _ = self.actor(obs, compute_log_pi=False)
-            if step > reflection_step:
+            if step > reflection_step and self.training:
                 pi = self.CycDM.opt_at_predict(obs, pi, self.iteraction, future_step)
         return pi.cpu().data.numpy().flatten()
 

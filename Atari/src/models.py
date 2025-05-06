@@ -864,37 +864,51 @@ class PVCatDqnModel(torch.nn.Module):
         return (tensor * self.discounts.unsqueeze(1)).sum(dim=0)    
 
     @torch.no_grad()
-    def opt_at_predict(self, observation, action):
-        self.batch_size = observation.size(0)
-        K = self.iteraction        
-        x = observation.flatten(1, 2)
-        z = self.transform(x, augment=True)
-        z = self.target_encoder(z).detach() 
-        if self.renormalize:
-            z = renormalize(z, -3)
+    def opt_at_predict(self, observation, action, mix_lambda=0.5):
+        B = observation.size(0)
+        K = self.iteraction
+        T = self.future_step
+        device = observation.device
+        x = observation.float() / 255.0
+        x = observation.flatten(1, 2)         
+        z = self.transform(x, augment=False)
+        z = self.stem_forward(z,None,None)
 
-        _, topk_idx = action.topk(K, dim=-1)
-        first_actions = topk_idx.transpose(0, 1).contiguous()
+        topk = action.topk(K, dim=-1)[1]        
+        first_actions = topk.t().contiguous()             
 
-        latents = z.unsqueeze(0).expand(K, self.batch_size,  *z.shape[1:]).contiguous()  
-        latents = latents.view(K * self.batch_size, *z.shape[1:])  
-        curr_actions = first_actions   
-        cum_rew = []
-        for _ in range(self.future_step):
-            cur_latents, _ = self.forward_dynamics_model(latents, curr_actions, invert=False)
-            value = self.select_action(cur_latents)
-            Q_value, next_actions = torch.max(value, dim=-1)
-            curr_actions = next_actions.view(K, self.batch_size) 
-            cum_rew.append(Q_value) 
-            latents = latents 
-        rewards_stack = torch.stack(cum_rew, dim=0)     # [T, K*B]
-        discounted = rewards_stack * self.discounts.unsqueeze(1)  # [T, K*B]
-        total = discounted.sum(dim=0).view(K, self.batch_size)        # [K, B]
+        latents = z.unsqueeze(0).expand(K, -1, -1, -1, -1) \
+                .reshape(K*B, *z.shape[1:])    
+        curr_actions = first_actions.flatten(0, 1) 
+        returns = torch.zeros(K*B, device=device)
 
-        idx = total.argmax(dim=0, keepdim=True)         # [1, B]
-        best = first_actions.gather(0, idx).squeeze(0)  # [B]
+        for t in range(T):
+            next_latents, reward_logits  = self.forward_dynamics_model(
+                latents, curr_actions, invert=False
+            ) 
+            prob_r = F.softmax(reward_logits, dim=-1)       
+            num_bins = prob_r.size(-1)                       
+            limit    = (num_bins - 1) // 2                  
 
-        return best
+            z_r = torch.arange(-limit, limit + 1,
+                            device=device,
+                            dtype=prob_r.dtype)           
+
+            r_t = (prob_r * z_r.unsqueeze(0)).sum(-1)       
+            returns += (self.discounts[t] * r_t)
+            
+            q_vals = self.Q_from_latent(next_latents)       
+            q_max, next_actions = q_vals.max(dim=-1)       
+            returns += (self.discounts[t] * mix_lambda * q_max)
+
+            latents = next_latents
+            curr_actions = next_actions
+
+        total = returns.view(K, B)     
+        best_idx = total.argmax(dim=0)  
+        best_first = first_actions[best_idx, torch.arange(B)] 
+
+        return best_first.long()
     
     def cal_Q_value(self, latents, actions):
         self.V_max = 10
