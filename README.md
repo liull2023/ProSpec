@@ -48,9 +48,9 @@
 | Benchmark     | Tasks | ProSpec Wins | SPR Wins | PlayVirtual Wins |RLASTIC Wins |
 |--------------:|:-----:|:------------:|:---------:|:---------:|:---------:|
 | **DMControl** | 6     | **4**        | 0        |1        |2        |
-| **Atari**     | 26    | **7**        | 0       |1        |8        |
+| **Atari**     | 26    | **8**        | 0       |1        |8        |
 
-> Under limited interactions, ProSpec outperforms state-of-the-art on 4/6 DMControl tasks and 7/26 Atari games.
+> Under limited interactions, ProSpec outperforms state-of-the-art on 4/6 DMControl tasks and 8/26 Atari games.
 
 ---
 
