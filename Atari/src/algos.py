@@ -99,6 +99,7 @@ class PVCategoricalDQN(CategoricalDQN):
         if self.prioritized_replay:
             replay_kwargs['alpha'] = self.pri_alpha
             replay_kwargs['beta'] = self.pri_beta_init
+            # replay_kwargs["input_priorities"] = self.input_priorities
             buffer = AsyncPrioritizedSequenceReplayFrameBufferExtended(**replay_kwargs)
         else:
             buffer = AsyncUniformSequenceReplayFrameBufferExtended(**replay_kwargs)
@@ -109,6 +110,7 @@ class PVCategoricalDQN(CategoricalDQN):
         """Called in initilize or by async runner after forking sampler."""
         self.rank = rank
         try:
+            # We're probably dealing with DDP
             self.optimizer = self.OptimCls(self.agent.model.module.parameters(),
                 lr=self.learning_rate, **self.optim_kwargs)
             self.model = self.agent.model.module
@@ -152,9 +154,11 @@ class PVCategoricalDQN(CategoricalDQN):
         # Gaussian ramp up for cycle loss
         if self.warmup > 0 and itr < self.warmup:
             warm_weight = np.exp(-5 * ((1 - (itr+1)/self.warmup)**2))
+            # real_rc_weight = self.rc_weight * warm_weight
             real_vc_weight = self.vc_weight * warm_weight
             real_bp_weight = self.bp_weight * (1 - warm_weight)
         else:
+            # real_rc_weight = self.rc_weight
             real_vc_weight = self.vc_weight
             real_bp_weight = 0
         real_rc_weight = self.rc_weight
@@ -162,7 +166,8 @@ class PVCategoricalDQN(CategoricalDQN):
         for _ in range(self.updates_per_optimize):
             samples_from_replay = self.replay_buffer.sample_batch(self.batch_size)
             loss, td_abs_errors, model_rl_loss, reward_loss,\
-            fp_loss, bp_loss, real_cycle_loss, virtual_cycle_loss = self.loss(samples_from_replay)
+            fp_loss, bp_loss, real_cycle_loss, virtual_cycle_loss = self.loss(samples_from_replay, itr)
+            # spr_loss = self.t0_spr_loss_weight*t0_spr_loss + self.model_spr_weight*model_spr_loss
             if self.bp_warm:
                 prediction_loss = self.fp_weight * fp_loss + real_bp_weight * bp_loss
             else:
@@ -178,14 +183,15 @@ class PVCategoricalDQN(CategoricalDQN):
                 prediction_loss.item(), fp_loss.item(), bp_loss.item(), \
                 cycle_loss.item(), real_cycle_loss.item(), virtual_cycle_loss.item())
                 )
+                # print(real_bp_weight, real_vc_weight)
             
             self.optimizer.zero_grad()
             total_loss.backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(
                 self.model.stem_parameters(), self.clip_grad_norm)
-            if len(list(self.model.forward_dynamics_model.parameters())) > 0:
+            if len(list(self.model.dynamics_model.parameters())) > 0:
                 model_grad_norm = torch.nn.utils.clip_grad_norm_(
-                    self.model.forward_dynamics_model.parameters(), self.clip_grad_norm)
+                    self.model.dynamics_model.parameters(), self.clip_grad_norm)
                 bdm_model_grad_norm = torch.nn.utils.clip_grad_norm_(
                     self.model.backward_dynamics_model.parameters(), self.clip_grad_norm)
             else:
@@ -284,8 +290,8 @@ class PVCategoricalDQN(CategoricalDQN):
                 next_ps = self.agent(samples.all_observation[index + self.n_step_return],
                                      samples.all_action[index + self.n_step_return],
                                      samples.all_reward[index + self.n_step_return])  # [B,A,P']
-                next_qs = torch.tensordot(next_ps, z, dims=1)  # [B,A]  Q-value
-                next_a = torch.argmax(next_qs, dim=-1)  # [B] Qpt action
+                next_qs = torch.tensordot(next_ps, z, dims=1)  # [B,A]
+                next_a = torch.argmax(next_qs, dim=-1)  # [B]
             else:
                 target_qs = torch.tensordot(target_ps, z, dims=1)  # [B,A]
                 next_a = torch.argmax(target_qs, dim=-1)  # [B]
@@ -304,7 +310,7 @@ class PVCategoricalDQN(CategoricalDQN):
 
         return losses, KL_div.detach()
 
-    def loss(self, samples):
+    def loss(self, samples, itr):
         """
         Computes the Distributional Q-learning loss, based on projecting the
         discounted rewards + target Q-distribution into the current Q-domain,
@@ -314,6 +320,8 @@ class PVCategoricalDQN(CategoricalDQN):
         """
         if self.model.noisy:
             self.model.head.reset_noise()
+        # start = time.time()
+        # spr_loss: (1+jumps, bs); idm or bdm loss: (bs, )
         log_pred_ps, pred_rew, real_cycle_loss, prediction_loss, virtual_cycle_loss\
             = self.agent(samples.all_observation.to(self.agent.device),
                          samples.all_action.to(self.agent.device),
@@ -356,6 +364,7 @@ class PVCategoricalDQN(CategoricalDQN):
 
         if self.prioritized_replay:
             weights = samples.is_weights
+            # print(weights)    # (bs, )
             forward_prediction_loss = forward_prediction_loss * weights
             backward_prediction_loss = backward_prediction_loss * weights
             reward_loss = reward_loss * weights

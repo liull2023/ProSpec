@@ -253,9 +253,7 @@ class CycDM(nn.Module):
         self.action_aug_type = action_aug_type
         self.num_aug_actions = num_aug_actions
         self.inverible_model = RealNVP(encoder_feature_dim, action_shape[-1], 1, [64, 128], [32])
-        self.inverible_model = torch.compile(self.inverible_model,backend='inductor')
         self.OWN = OWNLinear(encoder_feature_dim+action_shape[-1], encoder_feature_dim)
-        self.OWN = torch.compile(self.OWN ,backend='inductor')
         # self.transition_model = make_transition_model(
         #     transition_model_type, encoder_feature_dim, action_shape,
         #     transition_model_layer_width)

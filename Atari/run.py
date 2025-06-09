@@ -7,26 +7,26 @@ from rlpyt.experiments.configs.atari.dqn.atari_dqn import configs
 from rlpyt.samplers.serial.sampler import SerialSampler
 from rlpyt.envs.atari.atari_env import AtariTrajInfo
 from rlpyt.utils.logging.context import logger_context
+
 import os
 import wandb
 import torch
 import numpy as np
-
+import time
 from src.models import PVCatDqnModel
 from src.rlpyt_utils import OneToOneSerialEvalCollector, SerialSampler, MinibatchRlEvalWandb
 from src.algos import PVCategoricalDQN
 from src.agent import PVAgent
 from src.rlpyt_atari_env import AtariEnv
 from src.utils import set_config
-import time
-torch.set_float32_matmul_precision('high')
+
 
 def build_and_train(game="pong", run_ID=0, cuda_idx=0, args=None):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     env = AtariEnv
     config = set_config(args, game)
-    
+
     sampler = SerialSampler(
         EnvCls=env,
         TrajInfoCls=AtariTrajInfo,  # default traj info + GameScore
@@ -70,10 +70,12 @@ def build_and_train(game="pong", run_ID=0, cuda_idx=0, args=None):
 
 if __name__ == "__main__":
     import argparse
+    import random
+    seed = random.randint(0, 100000)
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--name', help='Experiment name', default='Atari')
-    parser.add_argument('--game', help='Atari game', default='alien')
-    parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--game', help='Atari game', default='amidar')
+    parser.add_argument('--seed', type=int, default=seed)
     parser.add_argument('--grayscale', type=int, default=1)
     parser.add_argument('--framestack', type=int, default=4)
     parser.add_argument('--imagesize', type=int, default=84)
@@ -139,7 +141,7 @@ if __name__ == "__main__":
     parser.add_argument('--fp', action='store_true', help='if set, then calculate forward prediction loss', default=True)
     parser.add_argument('--bp', action='store_true', help='if set, then calculate backward prediction loss')
     parser.add_argument('--bp-mode', type=str, default='gt', help='train RDM starting from gt s_t+K(gt) or estimated s_t+K(esti)')
-    parser.add_argument('--rc-weight', type=float, default=0.)
+    parser.add_argument('--rc-weight', type=float, default=1.)
     parser.add_argument('--vc-weight', type=float, default=1.)
     parser.add_argument('--fp-weight', type=float, default=1., help='Forward Prediction Loss weight')
     parser.add_argument('--bp-weight', type=float, default=0., help='Backward Prediction Loss weight')
@@ -149,8 +151,8 @@ if __name__ == "__main__":
     parser.add_argument('--aug-type', type=str, default='random', help='random, nonaug or hybrid')
     parser.add_argument('--warmup', type=int, default=50000)
     parser.add_argument('--bp-warm', action='store_true', help='if set, then annealing decreasing bp-weight')
-    parser.add_argument('--prospective_count', type=int, default=9)
-    parser.add_argument('--predict_horizon', type=int, default=3)
+    parser.add_argument('--iteraction', type=int, default=9)
+    parser.add_argument('--future_step', type=int, default=3)
     args = parser.parse_args()
     print(args)
     
@@ -160,6 +162,7 @@ if __name__ == "__main__":
     if args.public:
         wandb.init(anonymous="allow", config=args, tags=[args.tag] if args.tag else None, dir=args.wandb_dir)
     else:
+        # wandb.init(project=args.project, entity=args.entity, config=args, tags=[args.tag] if args.tag else None, dir=args.wandb_dir)
         wandb.init(project=args.project, config=args, tags=[args.tag] if args.tag else None, dir=args.wandb_dir, name=args.name)
     wandb.config.update(vars(args))
     build_and_train(game=args.game,

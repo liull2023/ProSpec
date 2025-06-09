@@ -7,12 +7,14 @@ import torch
 from rlpyt.agents.dqn.atari.atari_catdqn_agent import AtariCatDqnAgent
 from rlpyt.utils.buffer import buffer_to
 from rlpyt.utils.collections import namedarraytuple
-import time
+from torchvision.utils import make_grid, save_image
+from torchvision.transforms import ToPILImage
+import matplotlib.pyplot as plt
+import numpy as np
 AgentInputs = namedarraytuple("AgentInputs",
     ["observation", "prev_action", "prev_reward"])
 AgentInfo = namedarraytuple("AgentInfo", "p")
 AgentStep = namedarraytuple("AgentStep", ["action", "agent_info"])
-
 
 class PVAgent(AtariCatDqnAgent):
     """Agent for Categorical DQN algorithm with search."""
@@ -21,6 +23,7 @@ class PVAgent(AtariCatDqnAgent):
         """Standard init, and set the number of probability atoms (bins)."""
         super().__init__(**kwargs)
         self.eval = eval
+        self.cuda_idx = 2
 
     def __call__(self, observation, prev_action, prev_reward, train=False):
         """Returns Q-values for states/observations (with grad)."""
@@ -43,9 +46,9 @@ class PVAgent(AtariCatDqnAgent):
         # Overwrite distribution.
         self.search = SPRActionSelection(self.model, self.distribution)
         if torch.cuda.is_available():
-            cuda_idx = torch.cuda.current_device()
+            cuda_idx = self.cuda_idx
             self.to_device(cuda_idx)
-        self.search = torch.compile(self.search, mode="max-autotune",dynamic=True)
+
 
     def to_device(self, cuda_idx=None):
         """Moves the model to the specified cuda device, if not ``None``.  If
@@ -56,6 +59,9 @@ class PVAgent(AtariCatDqnAgent):
 
         Typically called in the runner during startup.
         """
+        # super().to_device(cuda_idx)
+        # self.search.to_device(cuda_idx)
+        # self.search.network = self.model
         if cuda_idx is None:
             device = torch.device("cpu")
         else:
@@ -66,7 +72,6 @@ class PVAgent(AtariCatDqnAgent):
 
         self.search.to_device(device)
         self.search.network = self.model
-
 
     def eval_mode(self, itr):
         """Extend method to set epsilon for evaluation, using 1 for
@@ -83,19 +88,18 @@ class PVAgent(AtariCatDqnAgent):
         self.search.epsilon = self.distribution.epsilon
         self.search.network.head.set_sampling(True)
         self.search.set_deterministic(False)
-        self.search.set_deterministic(False)
         self.itr = itr
 
     def train_mode(self, itr):
         super().train_mode(itr)
         self.search.network.head.set_sampling(True)
+        self.search.set_deterministic(False)
         self.itr = itr
 
     @torch.no_grad()
     def step(self, observation, prev_action, prev_reward):
         """Compute the discrete distribution for the Q-value for each
         action for each state/observation (no grad)."""
-
         action, p = self.search.run(observation.to(self.search.device))
         p = p.cpu()
         action = action.cpu()
@@ -113,10 +117,11 @@ class SPRActionSelection(torch.nn.Module):
         self.device = device
         self.first_call = True
         self.deterministic = False
+        self.prospect = 0
 
     def to_device(self, idx):
         self.device = idx
-
+        
     def set_deterministic(self, flag: bool):
         self.deterministic = flag
 
@@ -124,6 +129,7 @@ class SPRActionSelection(torch.nn.Module):
     def run(self, obs):
         while len(obs.shape) <= 4:
             obs.unsqueeze_(0)
+     
         obs = obs.to(self.device).float() / 255.
 
         value = self.network.select_action(obs)
@@ -140,12 +146,11 @@ class SPRActionSelection(torch.nn.Module):
         if self.deterministic:
             return torch.argmax(value, dim=-1)
             
-        if self.prospect > 10000:
+        if self.prospect > 2000:
             arg_select = self.network.opt_at_predict(observation, value)
         else:
             arg_select = torch.argmax(value, dim=-1)
         self.prospect += 1
-
         mask = torch.rand(arg_select.shape, device=value.device) < self.epsilon
         arg_rand = torch.randint(low=0, high=value.shape[-1], size=(mask.sum(),), device=value.device)
         arg_select[mask] = arg_rand

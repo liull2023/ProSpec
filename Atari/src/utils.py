@@ -44,8 +44,6 @@ def set_config(args, game):
     config["algo"]["clip_grad_norm"] = args.max_grad_norm
     config['algo']['pri_alpha'] = 0.5
     config['algo']['pri_beta_steps'] = int(10e4)
-    config['algo']['iteraction'] = args.prospective_count
-    config['algo']['future_step'] = args.predict_horizon
     config['optim']['eps'] = 0.00015
     config["sampler"]["eval_max_trajectories"] = 100
     config["sampler"]["eval_n_envs"] = 100
@@ -65,6 +63,8 @@ def set_config(args, game):
     config["model"]["bp"] = args.bp
     config["model"]["bp_mode"] = args.bp_mode
     config["model"]["aug_type"] = args.aug_type
+    config["model"]["iteraction"] = args.iteraction
+    config["model"]["future_step"] = args.future_step
 
     if args.noisy_nets:
         config['agent']['eps_eval'] = 0.001

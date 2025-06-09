@@ -26,14 +26,9 @@ class LayerNormFlow(nn.Module):
 
             mean = self.batch_mean
             var = self.batch_var
-            # print(mean)
-            # print(var)
 
             x_hat = (inputs - mean.reshape(-1, 1)) / var.sqrt().reshape(-1, 1)
-            # print(x_hat)
             y = torch.exp(self.log_gamma) * x_hat + self.beta
-            # print(y)
-            # print('--------------')
             return y[:, :M.shape[-1]], y[:, -N.shape[-1]:]
         else:
             mean = self.batch_mean
@@ -146,13 +141,13 @@ class RealNVP(nn.Module):
 
         self.M = M
         self.N = N
-        self.spatial = 7 * 7
+        self.spatial = 7*7
         self.M_dim = M * self.spatial
         self.N_dim = N * self.spatial
         layers = []
         for i in range(n_layers):
-            layers.append(CoupleLayer(self.M_dim, self.N_dim, fn, bn, key=i, reverse=False))
-            layers.append(CoupleLayer(self.M_dim, self.N_dim, fn, bn, key=i, reverse=True))
+            layers.append(CoupleLayer(self.M_dim, self.N_dim, fn, bn, key=0, reverse=False))
+            layers.append(CoupleLayer(self.M_dim, self.N_dim, fn, bn, key=0, reverse=True))
             layers.append(LayerNormFlow(self.M_dim, self.N_dim))
         self.layers = nn.ModuleList(layers)
 
@@ -182,4 +177,3 @@ if __name__ == '__main__':
     o = model(i, invert=False)
     print(o)
     print(model(o, invert=True))
-

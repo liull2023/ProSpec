@@ -193,6 +193,7 @@ class MinibatchRlEvalWandb(MinibatchRlEval):
         else:
             eval = itr == 0 or itr >= self.min_itr_learn - 1
 
+        # eval = False
 
         if eval:
             logger.log("Evaluating agent...")
@@ -222,13 +223,14 @@ class MinibatchRlEvalWandb(MinibatchRlEval):
             logger.set_iteration(itr)
             with logger.prefix(f"itr #{itr} "):
                 self.agent.sample_mode(itr)
-                samples, traj_infos, _ = self.sampler.obtain_samples(itr)
+                samples, traj_infos = self.sampler.obtain_samples(itr)
                 self.agent.train_mode(itr)
                 opt_info = self.algo.optimize_agent(itr, samples)
                 self.store_diagnostics(itr, traj_infos, opt_info)
                 if (itr + 1) % self.log_interval_itrs == 0:
                     eval_traj_infos, eval_time = self.evaluate_agent(itr)
                     self.log_diagnostics(itr, eval_traj_infos, eval_time)
+                self.algo.agent.model.increment_step()
         self.shutdown()
 
 
@@ -392,7 +394,7 @@ class SerialSampler(BaseSampler):
         self.collector.reset_if_needed(agent_inputs)
         self.agent_inputs = agent_inputs
         self.traj_infos = traj_infos
-        return self.samples_pyt, traj_infos, completed_infos
+        return self.samples_pyt, completed_infos
 
     def evaluate_agent(self, itr):
         """Call the evaluation collector to execute agent-environment interactions."""

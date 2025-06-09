@@ -9,7 +9,6 @@ import torch.nn as nn
 
 from rlpyt.models.utils import scale_grad, update_state_dict
 from rlpyt.utils.tensor import infer_leading_dims, restore_leading_dims
-from rlpyt.utils.tensor import select_at_indexes, valid_mean
 from src.utils import count_parameters, dummy_context_mgr
 import numpy as np
 from kornia.augmentation import RandomAffine,\
@@ -17,10 +16,10 @@ from kornia.augmentation import RandomAffine,\
     CenterCrop, \
     RandomResizedCrop
 from kornia.filters import GaussianBlur2d
-from src.couple_layers import RealNVP
 import copy
 import wandb
-from src.OWN_linear import OWNLinear, OWNNorm
+from src.couple_layers import RealNVP
+from src.OWN_linear import OWNLinear
 
 
 class PVCatDqnModel(torch.nn.Module):
@@ -74,16 +73,12 @@ class PVCatDqnModel(torch.nn.Module):
             bp=False,
             bp_mode='gt',
             aug_type='random',
-            iteraction=9,
-            future_step=3
+            iteraction=1,
+            future_step=1
     ):
         """Instantiates the neural network according to arguments; network defaults
         stored within this method."""
         super().__init__()
-        self.V_max = 10
-        self.V_min = -10
-        self.n_atoms = 51
-        self.z = torch.linspace(self.V_min, self.V_max, self.n_atoms)
         self.iteraction = iteraction
         self.future_step = future_step
         self.cycle_step = cycle_step
@@ -95,8 +90,6 @@ class PVCatDqnModel(torch.nn.Module):
         self.bp_mode = bp_mode
         self.aug_type = aug_type
         self.aug_num = output_size if aug_num == None else int(aug_num * output_size)
-        self.V_max = 10
-        self.V_min = -10
         if self.aug_type == 'hybrid' and self.aug_num == 0:
             self.aug_num = 1
 
@@ -157,7 +150,6 @@ class PVCatDqnModel(torch.nn.Module):
             use_maxpool=False,
             dropout=dropout,
         )
-
         fake_input = torch.zeros(1, f*c, imagesize, imagesize)
         fake_output = self.conv(fake_input)
         self.hidden_size = fake_output.shape[1]
@@ -189,37 +181,24 @@ class PVCatDqnModel(torch.nn.Module):
                                                    std_init=noisy_nets_std)
 
         if self.jumps > 0:
-            use_invertrble_model = True
-            if use_invertrble_model== False:
-                self.forward_dynamics_model = TransitionModel(channels=self.hidden_size,
-                                                    num_actions=output_size,
-                                                    pixels=self.pixels,
-                                                    hidden_size=self.hidden_size,
-                                                    limit=1,
-                                                    blocks=dynamics_blocks,
-                                                    norm_type=norm_type,
-                                                    renormalize=renormalize,
-                                                    residual=residual_tm)
-                self.backward_dynamics_model = BackwardTransitionModel(channels=self.hidden_size,
-                                                    num_actions=output_size,
-                                                    pixels=self.pixels,
-                                                    hidden_size=self.hidden_size,
-                                                    limit=1,
-                                                    blocks=dynamics_blocks,
-                                                    norm_type=norm_type,
-                                                    renormalize=renormalize,
-                                                    residual=residual_tm)
-            else:
-                self.forward_dynamics_model = Invert_TransitionModel(state_dim=self.hidden_size,
-                                                  num_actions=output_size,
-                                                  pixels=self.pixels,
-                                                  hidden_size=self.hidden_size,
-                                                  limit=1,
-                                                  blocks=dynamics_blocks,
-                                                  norm_type=norm_type,
-                                                  renormalize=renormalize,
-                                                  residual=residual_tm)
-                self.backward_dynamics_model = self.forward_dynamics_model
+            # self.dynamics_model = TransitionModel(channels=self.hidden_size,
+            #                                       num_actions=output_size,
+            #                                       pixels=self.pixels,
+            #                                       hidden_size=self.hidden_size,
+            #                                       limit=1,
+            #                                       blocks=dynamics_blocks,
+            #                                       norm_type=norm_type,
+            #                                       renormalize=renormalize,
+            #                                       residual=residual_tm)
+            # self.backward_dynamics_model = BackwardTransitionModel(channels=self.hidden_size,
+            #                                     num_actions=output_size,
+            #                                     pixels=self.pixels,
+            #                                     hidden_size=self.hidden_size,
+            #                                     limit=1,
+            #                                     blocks=dynamics_blocks,
+            #                                     norm_type=norm_type,
+            #                                     renormalize=renormalize,
+            #                                     residual=residual_tm)
             # self.inverse_dynamics_model = InverseTransitionModel(channels=self.hidden_size,
             #                                       num_actions=output_size,
             #                                       pixels=self.pixels,
@@ -228,9 +207,19 @@ class PVCatDqnModel(torch.nn.Module):
             #                                       blocks=dynamics_blocks,
             #                                       norm_type=norm_type,
             #                                       renormalize=renormalize,
-            #                                       residual=residual_tm)                  
+            #                                       residual=residual_tm)
+            self.dynamics_model = Invert_TransitionModel(state_dim=self.hidden_size,
+                                                  num_actions=output_size,
+                                                  pixels=self.pixels,
+                                                  hidden_size=self.hidden_size,
+                                                  limit=1,
+                                                  blocks=dynamics_blocks,
+                                                  norm_type=norm_type,
+                                                  renormalize=renormalize,
+                                                  residual=residual_tm)
+            self.backward_dynamics_model = self.dynamics_model
         else:
-            self.forward_dynamics_model = nn.Identity()
+            self.dynamics_model = nn.Identity()
 
         self.renormalize = renormalize
 
@@ -346,21 +335,13 @@ class PVCatDqnModel(torch.nn.Module):
 
             elif self.shared_encoder:
                 self.target_encoder = self.conv
-        self.register_buffer("discounts", 0.99 ** torch.arange(self.future_step))
+        self.register_buffer("discounts", 0.99 ** torch.arange(self.future_step+1))
 
-    def print_device_summary(self):
-        print("=== Module device summary ===")
-        for name, module in self.named_modules():
-            if name == "":
-                continue
-            params = list(module.parameters())
-            if params:
-                dev = params[0].device
-            else:
-                bufs = list(module.buffers())
-                dev = bufs[0].device if bufs else "—"
-            print(f"{name:30s} → {dev}")
-        print("==============================")
+        print("Initialized model with {} parameters".format(count_parameters(self)))
+        self.train_step = 0
+        self.max_lambda_align = 1.0
+        self.max_lambda_warmup_steps = 5000
+        self.lambda_warmup_steps = 10000
 
     def set_sampling(self, sampling):
         if self.noisy:
@@ -376,7 +357,6 @@ class PVCatDqnModel(torch.nn.Module):
     def cal_acc(self, logits, labels):
         preds = torch.max(logits, dim=1)[1]
         return torch.mean((preds == labels.float()).float())
-
 
     def global_spr_loss(self, latents, target_latents, observation):
         global_latents = self.global_classifier(latents)
@@ -471,7 +451,7 @@ class PVCatDqnModel(torch.nn.Module):
         loss = self.spr_loss(latents, targets)
         '''
         loss = self.spr_loss(global_latents, global_targets, mean=False)
-
+        # loss = loss.view(timesteps, batch_size) # (timesteps, bs)
         return loss
 
     def zspace_loss(self, latents, target_latents, batch_size, timesteps):
@@ -479,13 +459,21 @@ class PVCatDqnModel(torch.nn.Module):
         target_latents = F.normalize(target_latents.flatten(-2, -1), p=2., dim=-1, eps=1e-3)  # ((1+jumps)*bs, C, H*W)
         loss = F.mse_loss(latents, target_latents.clone().detach(), 
                 reduction='none').sum(-1).mean(-1).view(timesteps, batch_size)
-        return loss 
+        # loss = torch.mean(F.mse_loss(latents, target_latents.detach(), reduction='none'), dim=[1,2,3]).view(timesteps, batch_size)
+        return loss # (timesteps, bs)
 
     def mse_loss(self, latents, target_latents, batch_size, timesteps):
+        # latents = F.normalize(latents.flatten(-2, -1), p=2., dim=-1, eps=1e-3)  # ((1+jumps)*bs, C, H*W)
+        # target_latents = F.normalize(target_latents.flatten(-2, -1), p=2., dim=-1, eps=1e-3)  # ((1+jumps)*bs, C, H*W)
+        # loss = F.mse_loss(latents, target_latents.detach(), reduction='none').sum(-1).mean(-1).view(timesteps, batch_size)
         loss = torch.mean(F.mse_loss(latents, target_latents.clone().detach(), 
                 reduction='none'), dim=[1,2,3]).view(timesteps, batch_size)
-        return loss 
+        return loss # (timesteps, bs)
 
+    def increment_step(self):
+        self.train_step += 1
+        
+        
     def my_spr_loss(self, latents, target_latents, batch_size, timesteps, no_grad=False):
         if no_grad:
             with torch.no_grad():
@@ -500,7 +488,9 @@ class PVCatDqnModel(torch.nn.Module):
                                              timesteps, global_targets.shape[-1]).transpose(1, 2)
         latents = global_latents.view(-1, batch_size,
                                              timesteps, global_latents.shape[-1]).transpose(1, 2)
+        # print(latents.size())   # [1, 7, 32, 512]
         loss = self.spr_loss(latents, targets)
+        # print(loss.size())  # [7, 32]
         return loss
 
     def prediction_loss(self, forward_latents, backward_latents, target_latents, space, batch_size, timesteps):
@@ -530,6 +520,7 @@ class PVCatDqnModel(torch.nn.Module):
         else:
             raise NameError
         loss = sim_loss(latents, target_latents, batch_size, timesteps)
+        # print("return")
         return loss
 
     def momentum_update(self, ):
@@ -538,6 +529,7 @@ class PVCatDqnModel(torch.nn.Module):
                               self.conv.state_dict(),
                               self.momentum_tau)
             if self.classifier_type != "bilinear":
+                # q_l1 is also bilinear for local
                 if self.local_spr and self.classifier_type != "q_l1":
                     update_state_dict(self.local_target_classifier,
                                       self.local_classifier.state_dict(),
@@ -602,6 +594,7 @@ class PVCatDqnModel(torch.nn.Module):
         else:
             p = p.squeeze(-1)
 
+        # Restore leading dimensions: [T,B], [B], or [], as input.
         p = restore_leading_dims(p, lead_dim, T, B)
         return p
 
@@ -660,21 +653,28 @@ class PVCatDqnModel(torch.nn.Module):
             # forward prediction
             if self.forward_predict:
                 forward_latents, forward_actions  = [latent], []
-                pred_rew = self.forward_dynamics_model.reward_predictor(latent)
+                pred_rew = self.dynamics_model.reward_predictor(latent)
                 pred_reward.append(F.log_softmax(pred_rew, -1))
                 for i in range(1, 1 + self.jumps):
                     cur_latents = forward_latents[-1]
                     cur_actions = prev_action[i]
-                    cur_latents, pred_rew = self.forward_dynamics_model(cur_latents, cur_actions, invert=False)
+                    cur_latents, pred_rew = self.dynamics_model(cur_latents, cur_actions)
                     forward_actions.append(cur_actions)
                     forward_latents.append(cur_latents)
                     pred_reward.append(F.log_softmax(pred_rew, -1))
+                # forw_pred_loss = self.do_spr_loss(forward_latents, observation)
                 pred_latents = torch.stack(forward_latents, 1).flatten(0, 1)    # (bs,T,..) -> (bs*T,..)
                 for_pred_loss = self.byol_loss(pred_latents, 
                                 target_latents, 
                                 'spr', 
                                 observation.size(1), 
                                 1+self.jumps)
+                mse_latent_loss = F.mse_loss(pred_latents, target_latents.detach())
+                Q_pred_latents = self.select_action(pred_latents)
+                Q_target_latents = self.select_action(target_latents)
+                mse_Q_latent_loss = F.mse_loss(Q_pred_latents, Q_target_latents.detach())
+                lambda_align = min(self.train_step / self.lambda_warmup_steps, 1.0) * self.max_lambda_align  
+                for_pred_loss = mse_latent_loss + lambda_align * mse_Q_latent_loss
 
                 if self.real_cycle:
                     recon_latents = cur_latents
@@ -787,7 +787,7 @@ class PVCatDqnModel(torch.nn.Module):
                 for i in range(1, 1 + self.cycle_step):
                     cur_latents = forward_latents[-1]
                     cur_actions = forward_actions[-1]
-                    cur_latents, _ = self.forward_dynamics_model(cur_latents, cur_actions,invert=False)
+                    cur_latents, _ = self.dynamics_model(cur_latents, cur_actions)
                     forward_latents.append(cur_latents)
                     if i < self.cycle_step:
                         next_actions = self.sample_cycle_actions(self.aug_type, 
@@ -830,11 +830,10 @@ class PVCatDqnModel(torch.nn.Module):
 
                 # Infer (presence of) leading dimensions: [T,B], [B], or [].
                 self.lead_dim, self.T, self.B, self.img_shape = infer_leading_dims(img, 3)
-                
+
                 conv_out = self.conv(img.view(self.T * self.B, *self.img_shape))  # Fold if T dimension.
             else:
                 conv_out = observation
-
             if self.renormalize:
                 conv_out = renormalize(conv_out, -3)
             p = self.head(conv_out)
@@ -852,72 +851,78 @@ class PVCatDqnModel(torch.nn.Module):
             p = restore_leading_dims(p, self.lead_dim, self.T, self.B)
 
             return p
-        
-    @staticmethod
-    def search_opt_at(first_actions: torch.Tensor, rewards: torch.Tensor) -> torch.Tensor:
-        idx = rewards.argmax(dim=0, keepdim=True)      # [1, B]
-        best = first_actions.gather(0, idx)            # [1, B]
-        return best.squeeze(0)                         # [B]
-            
-    def calculate_discounted_cumulative_reward(self, rewards):
-        tensor = torch.stack(rewards, dim=0)           # [T, K*B]
-        return (tensor * self.discounts.unsqueeze(1)).sum(dim=0)    
+
+    def select_action(self, obs):
+        value = self.forward(obs, None, None, train=False, eval=True)
+
+        if self.distributional:
+            value = from_categorical(value, logits=False, limit=10)
+        return value
+    
+    def scalar_reward_from_logits(self,reward_logits: torch.Tensor, limit: int):
+        probs = F.softmax(reward_logits, dim=-1)    # [B, 2L+1]
+        device = reward_logits.device
+        atoms = torch.linspace(-limit, limit, 2*limit+1,
+                            device=device, dtype=probs.dtype)  # [2L+1]
+        r_t = (probs * atoms).sum(dim=-1)             # [B]
+        return r_t
+    
+    @torch.no_grad()
+    def Q_from_latent(self, latents):
+        value = self.head_forward(latents, None, None, logits=True) 
+        return from_categorical(value, logits=True, limit=10)
+    
+    def L2_norm(self, x):
+        norm = torch.norm(x, p=2)
+        return x / norm
+    
+    def Max_min_norm(self, x):
+        max = torch.max(x)
+        min = torch.min(x)
+        return (x - min) / (max - min + 1e-8)
+    
+    def z_score_norm(self, x):
+        mean = torch.mean(x)
+        std = torch.std(x)
+        return (x - mean) / (std + 1e-8)
+
 
     @torch.no_grad()
-    def opt_at_predict(self, observation, action, mix_lambda=0.5):
+    def opt_at_predict(self, observation, value):
         B = observation.size(0)
         K = self.iteraction
         T = self.future_step
         device = observation.device
-        x = observation.float() / 255.0
         x = observation.flatten(1, 2)         
         z = self.transform(x, augment=False)
         z = self.stem_forward(z,None,None)
-
-        topk = action.topk(K, dim=-1)[1]        
+        Nvalue = self.z_score_norm(value) 
+        q_top,topk = Nvalue.topk(K, dim=-1) 
+          
         first_actions = topk.t().contiguous()             
 
         latents = z.unsqueeze(0).expand(K, -1, -1, -1, -1) \
                 .reshape(K*B, *z.shape[1:])    
         curr_actions = first_actions.flatten(0, 1) 
         returns = torch.zeros(K*B, device=device)
-
         for t in range(T):
-            next_latents, _  = self.forward_dynamics_model(
+            next_latents, _  = self.dynamics_model(
                 latents, curr_actions, invert=False
             )      
-            q_vals = self.Q_from_latent(next_latents)       
-            q_max, next_actions = q_vals.max(dim=-1)       
-            returns += (self.discounts[t] * q_max)
-
-            latents = next_latents
+            q_vals =  self.select_action(next_latents)
+            Nq_vals = self.z_score_norm(q_vals)
+            q_max, next_actions = Nq_vals.max(dim=-1) 
+            returns += (self.discounts[t+1] * q_max)
+            latents = next_latents 
             curr_actions = next_actions
-
+        returns += q_top.flatten(0, 1) 
         total = returns.view(K, B)     
         best_idx = total.argmax(dim=0)  
         best_first = first_actions[best_idx, torch.arange(B)] 
-
         return best_first.long()
-    
-    def cal_Q_value(self, latents, actions):
-        self.V_max = 10
-        self.V_min = -10
-        self.n_atoms = 51
-        z = torch.linspace(self.V_min, self.V_max, self.n_atoms)
-        with torch.no_grad():
-            next_ps = self.forward(latents, actions, None)  # [B,A,P']
-            next_qs = torch.tensordot(next_ps.to(z.device), z, dims=1)  # [B,A]  Q-value        
-        return torch.max(next_qs,dim=-1).values
-
-    def select_action(self, obs):
-        value = self.forward(obs, None, None, train=False, eval=True)
-        if self.distributional:
-            value = from_categorical(value, logits=False, limit=10)
-        return value
-    
 
     def step(self, state, action):
-        next_state, reward_logits = self.forward_dynamics_model(state, action, invert=False)
+        next_state, reward_logits = self.dynamics_model(state, action)
         return next_state, reward_logits
 
     def generate_all_actions(self, batch_size, num_actions, device):
@@ -1191,11 +1196,7 @@ class NoisyLinear(nn.Module):
 
 
 def maybe_transform(image, transform, alt_transform, p=0.8):
-    try:
-        processed_images = transform(image)
-    except:
-        image = image.float()
-        processed_images = transform(image)
+    processed_images = transform(image)
     if p >= 1:
         return processed_images
     else:
@@ -1375,15 +1376,16 @@ class TransitionModel(nn.Module):
                                         norm_type))
         layers.extend([Conv2dSame(hidden_size, channels, 3)])
 
+        self.action_embedding = nn.Embedding(num_actions, pixels*action_dim)
+
         self.network = nn.Sequential(*layers)
-        self.channels = channels
         self.reward_predictor = RewardPredictor(channels,
                                                 pixels=pixels,
                                                 limit=limit,
                                                 norm_type=norm_type)
         self.train()
 
-    def forward(self, x, action, invert=False):
+    def forward(self, x, action):
         batch_range = torch.arange(action.shape[0], device=action.device)
         action_onehot = torch.zeros(action.shape[0],
                                     self.num_actions,
@@ -1391,7 +1393,7 @@ class TransitionModel(nn.Module):
                                     x.shape[-1],
                                     device=action.device)
         action_onehot[batch_range, action, :, :] = 1
-        stacked_image = torch.cat([action_onehot, x], 1)
+        stacked_image = torch.cat([x, action_onehot], 1)
         next_state = self.network(stacked_image)
         if self.residual:
             next_state = next_state + x
@@ -1400,87 +1402,6 @@ class TransitionModel(nn.Module):
             next_state = renormalize(next_state, 1)
         next_reward = self.reward_predictor(next_state)
         return next_state, next_reward
-
-class Invert_TransitionModel(nn.Module):
-    def __init__(self,
-                 state_dim,
-                 num_actions,
-                 args=None,
-                 blocks=16,
-                 hidden_size=256,
-                 pixels=36,
-                 limit=300,
-                 action_dim=6,
-                 norm_type="bn",
-                 renormalize=True,
-                 residual=False):
-        super().__init__()
-        self.hidden_size = hidden_size
-        self.num_actions = num_actions
-        self.args = args
-        self.renormalize = renormalize
-        self.residual = residual
-        self.state_dim = state_dim
-        self.network = RealNVP(num_actions, state_dim, 1, [64,128], [32])
-        self.OWN = OWNLinear(num_actions+state_dim, state_dim)
-        self.reward_predictor = RewardPredictor(state_dim,
-                                                pixels=pixels,
-                                                limit=limit,
-                                                norm_type=norm_type)
-        self.train()
-
-    def forward(self, x, action, invert=False):
-        batch_size = x.shape[0]
-        C = x.shape[1]
-        H = x.shape[-2]
-        W = x.shape[-1]
-        actions = action.contiguous().view(-1, 1)
-        batch_range = torch.arange(actions.shape[0], device=actions.device)
-        action_onehot = torch.zeros(actions.shape[0],
-                                    self.num_actions,
-                                    x.shape[-2],
-                                    x.shape[-1],
-                                    device=actions.device)
-        action_onehot[batch_range, actions, :, :] = 1
-        
-        if not invert:
-            stacked_image = torch.cat([action_onehot, x], 1)
-            next_state = self.network(stacked_image, invert=False)
-
-            flat_in = (
-                next_state
-                .permute(0, 2, 3, 1)   # -> [B, H, W, C₁]
-                .contiguous()
-                .view(-1, next_state.shape[1])          # -> [B*H*W, C₁]
-            )
-            flat_out = self.OWN(flat_in, invert=False)
-            C2 = flat_out.shape[1]
-            reshaped = flat_out.reshape(batch_size, H, W, C2)
-            next_state = reshaped.permute(0, 3, 1, 2) 
-        else: 
-            flat_in = (
-                x
-                .permute(0, 2, 3, 1)        # -> [B, H, W, C1]
-                .contiguous()               
-                .reshape(-1, x.shape[1])    # -> [B*H*W, C1]
-            )
-            flat_out = self.OWN(flat_in, invert=True)       # -> [B*H*W, C2]
-            C2 = flat_out.shape[1]
-            reshaped = flat_out.reshape(batch_size, H, W, C2)  # -> [B, H, W, C2]
-            next_state = reshaped.permute(0, 3, 1, 2)          # -> [B, C2, H, W]
-            next_state = self.network(next_state, invert=True)
-            next_state = next_state[:, -self.state_dim:, :, :]
-            
-        if self.residual:
-            if invert == False:
-                next_state = next_state + x
-            else:
-                next_state = next_state - x
-        if invert == False:
-            next_reward = self.reward_predictor(next_state)
-            return next_state, next_reward
-        else:
-            return next_state
 
 
 class RewardPredictor(nn.Module):
@@ -1505,19 +1426,17 @@ class RewardPredictor(nn.Module):
     def forward(self, x):
         return self.network(x)
 
-def renormalize(tensor: torch.Tensor, first_dim: int = 1) -> torch.Tensor:
 
-    shape = tensor.shape
+
+def renormalize(tensor, first_dim=1):
     if first_dim < 0:
-        first_dim = len(shape) + first_dim
-    prefix = shape[:first_dim]
-    flat = tensor.reshape(*prefix, -1) 
-    max_val = flat.max(dim=first_dim, keepdim=True).values
-    min_val = flat.min(dim=first_dim, keepdim=True).values
+        first_dim = len(tensor.shape) + first_dim
+    flat = tensor.reshape(*tensor.shape[:first_dim], -1)
+    max_val, _ = flat.max(dim=first_dim, keepdim=True)
+    min_val, _ = flat.min(dim=first_dim, keepdim=True)
+    flat = (flat - min_val) / (max_val - min_val)
+    return flat.reshape(*tensor.shape)
 
-    denom = (max_val - min_val).clamp_min(1e-6)
-    flat_norm = (flat - min_val) / denom
-    return flat_norm.reshape(*shape)
 
 
 class InverseTransitionModel(nn.Module):
@@ -1559,7 +1478,7 @@ class InverseTransitionModel(nn.Module):
 
         self.train()
 
-    def forward(self, state, next_state, invert=None):
+    def forward(self, state, next_state):
         ''' s_t+1, s_t '''
         stacked_states = torch.cat([state, next_state], 1)
         feat = self.network(stacked_states)
@@ -1598,9 +1517,13 @@ class BackwardTransitionModel(nn.Module):
         self.action_embedding = nn.Embedding(num_actions, pixels*action_dim)
 
         self.network = nn.Sequential(*layers)
+        # self.reward_predictor = RewardPredictor(channels,
+        #                                         pixels=pixels,
+        #                                         limit=limit,
+        #                                         norm_type=norm_type)
         self.train()
 
-    def forward(self, x, action, invert=None):
+    def forward(self, x, action):
         ''' s_t+1, a_t => s_t '''
         batch_range = torch.arange(action.shape[0], device=action.device)
         action_onehot = torch.zeros(action.shape[0],
@@ -1616,12 +1539,14 @@ class BackwardTransitionModel(nn.Module):
         next_state = F.relu(next_state)
         if self.renormalize:
             next_state = renormalize(next_state, 1)
+        # next_reward = self.reward_predictor(next_state)
+        # return next_state, next_reward
         return next_state
 
-if __name__ == '__main__':
-    model = Invert_TransitionModel(
-                 channels=2,
-                 num_actions=2,
+class Invert_TransitionModel(nn.Module):
+    def __init__(self,
+                 state_dim,
+                 num_actions,
                  args=None,
                  blocks=16,
                  hidden_size=256,
@@ -1630,12 +1555,64 @@ if __name__ == '__main__':
                  action_dim=6,
                  norm_type="bn",
                  renormalize=True,
-                 residual=False)
-    x = torch.randint((1,10),(3,2,7,7))
-    print(x)
-    a = torch.randint((1,10),(3,2))
-    print(a)
-    x1 = model(x, a, invert=False)
-    print(x1)
-    x = model(x1, a, invert=True)
-    print(x)
+                 residual=False):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_actions = num_actions
+        self.args = args
+        self.renormalize = renormalize
+        self.residual = residual
+        self.state_dim = state_dim
+        self.network = RealNVP(num_actions, state_dim, 4, [64,128], [32])
+        self.OWN = OWNLinear(num_actions+state_dim, state_dim)
+        self.reward_predictor = RewardPredictor(state_dim,
+                                                pixels=pixels,
+                                                limit=limit,
+                                                norm_type=norm_type)
+        self.train()
+
+    def forward(self, x, action, invert=False):
+        batch_size = x.shape[0]
+        C = x.shape[1]
+        H = x.shape[-2]
+        W = x.shape[-1]
+        actions = action.view(-1) 
+        oh = F.one_hot(actions, num_classes=self.num_actions).float()
+        action_onehot = oh.view(batch_size, self.num_actions, 1, 1).expand(-1, -1, H, W)
+        if not invert:
+            stacked_image = torch.cat([action_onehot, x], 1)
+            next_state = self.network(stacked_image, invert=False)
+            flat_in = (
+                next_state
+                .permute(0, 2, 3, 1)   # -> [B, H, W, C₁]
+                .contiguous()
+                .view(-1, next_state.shape[1])          # -> [B*H*W, C₁]
+            )
+            flat_out = self.OWN(flat_in, invert=False)
+            C2 = flat_out.shape[1]
+            reshaped = flat_out.reshape(batch_size, H, W, C2)
+            next_state = reshaped.permute(0, 3, 1, 2) 
+        else: 
+            flat_in = (
+                x
+                .permute(0, 2, 3, 1)        # -> [B, H, W, C1]
+                .contiguous()               
+                .reshape(-1, x.shape[1])    # -> [B*H*W, C1]
+            )
+            flat_out = self.OWN(flat_in, invert=True)       # -> [B*H*W, C2]
+            C2 = flat_out.shape[1]
+            reshaped = flat_out.reshape(batch_size, H, W, C2)  # -> [B, H, W, C2]
+            next_state = reshaped.permute(0, 3, 1, 2)          # -> [B, C2, H, W]
+            next_state = self.network(next_state, invert=True)
+            next_state = next_state[:, -self.state_dim:, :, :]
+            
+        if self.residual:
+            if invert == False:
+                next_state = next_state + x
+            else:
+                next_state = next_state - x
+        if invert == False:
+            next_reward = self.reward_predictor(next_state)
+            return next_state, next_reward
+        else:
+            return next_state
